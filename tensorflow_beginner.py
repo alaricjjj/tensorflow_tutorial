@@ -1,7 +1,7 @@
 import tensorflow as tf
 # tf.test.is_gpu_available()
 # tf.config.list_physical_devices('GPU')
-print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+# print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 # mnist = tf.keras.datasets.mnist
 #
 # (x_train, y_train),(x_test, y_test) = mnist.load_data()
