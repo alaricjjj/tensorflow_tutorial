@@ -20,7 +20,7 @@ imdb = keras.datasets.imdb
 '''探索数据'''
 # data = imdb.load_data(num_words=10000)
 # print(type(data))
-(train_data, train_labels), (test_data, test_labels) = imdb.load_data()
+(train_data, train_labels), (test_data, test_labels) = imdb.load_data(num_words=10000)
 print("Training entries: {}, labels: {}".format(len(train_data), len(train_labels)))
 
 # print(train_data[0])
@@ -89,38 +89,106 @@ print(train_data[0])
 vocab_size = 10000
 
 model = keras.Sequential()
+# 第一层是嵌入（Embedding）层。该层采用整数编码的词汇表，并查找每个词索引的嵌入向量（embedding vector）。
+# 这些向量是通过模型训练学习到的。向量向输出数组增加了一个维度。得到的维度为：(batch, sequence, embedding)。
 model.add(keras.layers.Embedding(vocab_size, 16))
+# 接下来，GlobalAveragePooling1D 将通过对序列维度求平均值来为每个样本返回一个定长输出向量。
+# 这允许模型以尽可能最简单的方式处理变长输入。
 model.add(keras.layers.GlobalAveragePooling1D())
+# 该定长输出向量通过一个有 16 个隐层单元的全连接（Dense）层传输。
 model.add(keras.layers.Dense(16, activation='relu'))
+# 最后一层与单个输出结点密集连接。使用 Sigmoid 激活函数，其函数值为介于 0 与 1 之间的浮点数，表示概率或置信度。
 model.add(keras.layers.Dense(1, activation='sigmoid'))
 
 model.summary()
 
-# 层按顺序堆叠以构建分类器：
+# 损失函数与优化器
+# 一个模型需要损失函数和优化器来进行训练。由于这是一个二分类问题且模型输出概率值（一个使用 sigmoid 激活函数的单一单元层），
+# 我们将使用 binary_crossentropy 损失函数。
 #
-# 第一层是嵌入（Embedding）层。该层采用整数编码的词汇表，并查找每个词索引的嵌入向量（embedding vector）。这些向量是通过模型训练学习到的。
-# 向量向输出数组增加了一个维度。得到的维度为：(batch, sequence, embedding)。
-# 接下来，GlobalAveragePooling1D 将通过对序列维度求平均值来为每个样本返回一个定长输出向量。这允许模型以尽可能最简单的方式处理变长输入。
-# 该定长输出向量通过一个有 16 个隐层单元的全连接（Dense）层传输。
-# 最后一层与单个输出结点密集连接。使用 Sigmoid 激活函数，其函数值为介于 0 与 1 之间的浮点数，表示概率或置信度。
+# 这不是损失函数的唯一选择，例如，您可以选择 mean_squared_error 。但是，一般来说 binary_crossentropy 更适合处理
+# 概率——它能够度量概率分布之间的“距离”，或者在我们的示例中，指的是度量 ground-truth 分布与预测值之间的“距离”。
+#
+# 稍后，当我们研究回归问题（例如，预测房价）时，我们将介绍如何使用另一种叫做均方误差的损失函数。
+#
+# 现在，配置模型来使用优化器和损失函数：
+model.compile(optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=['accuracy'])
 
+'''创建一个验证集'''
+# 在训练时，我们想要检查模型在未见过的数据上的准确率（accuracy）。通过从原始训练数据中分离 10,000 个样本来创建一个验证集。
+# （为什么现在不使用测试集？我们的目标是只使用训练数据来开发和调整模型，然后只使用一次测试数据来评估准确率（accuracy））
+x_val = train_data[:10000]
+partial_x_train = train_data[10000:]
 
+y_val = train_labels[:10000]
+partial_y_train = train_labels[10000:]
 
+'''训练模型'''
+# 以 512 个样本的 mini-batch 大小迭代 40 个 epoch 来训练模型。这是指对 x_train 和 y_train 张量中所有样本的的 40 次迭代。
+# 在训练过程中，监测来自验证集的 10,000 个样本上的损失值（loss）和准确率（accuracy）：
+history = model.fit(partial_x_train,
+                    partial_y_train,
+                    epochs=40,
+                    batch_size=512,
+                    validation_data=(x_val, y_val),
+                    verbose=1)
 
+'''评估模型'''
+# 我们来看一下模型的性能如何。将返回两个值。损失值（loss）（一个表示误差的数字，值越低越好）与准确率（accuracy）。
+results = model.evaluate(test_data,  test_labels, verbose=2)
+print(results)
 
+'''创建一个准确率（accuracy）和损失值（loss）随时间变化的图表'''
+# model.fit() 返回一个 History 对象，该对象包含一个字典，其中包含训练阶段所发生的一切事件：
+history_dict = history.history
+history_dict.keys()
 
+# 有四个条目：在训练和验证期间，每个条目对应一个监控指标。我们可以使用这些条目来绘制训练与验证过程的损失值（loss）
+# 和准确率（accuracy），以便进行比较。
+import matplotlib.pyplot as plt
 
+acc = history_dict['accuracy']
+val_acc = history_dict['val_accuracy']
+loss = history_dict['loss']
+val_loss = history_dict['val_loss']
 
+epochs = range(1, len(acc) + 1)
 
+# “bo”代表 "蓝点"
+plt.plot(epochs, loss, 'bo', label='Training loss')
+# b代表“蓝色实线”
+plt.plot(epochs, val_loss, 'b', label='Validation loss')
+plt.title('Training and validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
 
+plt.show()
 
+plt.clf()   # 清除数字
 
+plt.plot(epochs, acc, 'bo', label='Training acc')
+plt.plot(epochs, val_acc, 'b', label='Validation acc')
+plt.title('Training and validation accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
 
+plt.show()
 
-
-
-
-
+# 在该图中，点代表训练损失值（loss）与准确率（accuracy），实线代表验证损失值（loss）与准确率（accuracy）。
+#
+# 注意训练损失值随每一个 epoch 下降而训练准确率（accuracy）随每一个 epoch 上升。这在使用梯度下降优化时是
+# 可预期的——理应在每次迭代中最小化期望值。
+#
+# 验证过程的损失值（loss）与准确率（accuracy）的情况却并非如此——它们似乎在 20 个 epoch 后达到峰值。这是
+# 过拟合的一个实例：模型在训练数据上的表现比在以前从未见过的数据上的表现要更好。在此之后，模型过度优化并学习
+# 特定于训练数据的表示，而不能够泛化到测试数据。
+#
+# 对于这种特殊情况，我们可以通过在 20 个左右的 epoch 后停止训练来避免过拟合。稍后，您将看到如何通过回调自
+# 动执行此操作。
 
 
 
